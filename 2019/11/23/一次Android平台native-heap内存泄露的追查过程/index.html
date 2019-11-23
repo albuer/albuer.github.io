@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '7.5.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":true,"show_result":true,"style":"default"},
+    back2top: {"enable":true,"sidebar":true,"scrollpercent":true},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="转载自我的CSDN Blog前段时间有个客户报了个问题：他们的一个视频播放app在我们的Android 6.0 SDK上出现内存泄露，我用showmap查了下，该app在长时间播放视频过程中出现native heap内存的持续泄露。原以为只要把libc debug开关打开了，就能很容易查出问题点，却没想到碰到了一些意想不到的情况。">
+<meta name="keywords" content="android,malloc,debug,heapsnap">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一次Android平台native heap内存泄露的追查过程">
+<meta property="og:url" content="https:&#x2F;&#x2F;albuer.github.io&#x2F;2019&#x2F;11&#x2F;23&#x2F;%E4%B8%80%E6%AC%A1Android%E5%B9%B3%E5%8F%B0native-heap%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2%E7%9A%84%E8%BF%BD%E6%9F%A5%E8%BF%87%E7%A8%8B&#x2F;index.html">
+<meta property="og:site_name" content="Albuer的博客">
+<meta property="og:description" content="转载自我的CSDN Blog前段时间有个客户报了个问题：他们的一个视频播放app在我们的Android 6.0 SDK上出现内存泄露，我用showmap查了下，该app在长时间播放视频过程中出现native heap内存的持续泄露。原以为只要把libc debug开关打开了，就能很容易查出问题点，却没想到碰到了一些意想不到的情况。">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2019-11-23T09:21:14.633Z">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://albuer.github.io/2019/11/23/%E4%B8%80%E6%AC%A1Android%E5%B9%B3%E5%8F%B0native-heap%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2%E7%9A%84%E8%BF%BD%E6%9F%A5%E8%BF%87%E7%A8%8B/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>一次Android平台native heap内存泄露的追查过程 | Albuer的博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Albuer的博客</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+
+  <a href="https://github.com/albuer" class="github-corner" title="进入我的GitHub" aria-label="进入我的GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://albuer.github.io/2019/11/23/%E4%B8%80%E6%AC%A1Android%E5%B9%B3%E5%8F%B0native-heap%E5%86%85%E5%AD%98%E6%B3%84%E9%9C%B2%E7%9A%84%E8%BF%BD%E6%9F%A5%E8%BF%87%E7%A8%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="Albuer">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Albuer的博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          一次Android平台native heap内存泄露的追查过程
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2019年11月23日 16:38:34 / 修改时间：17:21:14" itemprop="dateCreated datePublished" datetime="2019-11-23T16:38:34+08:00">2019年11月23日</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%B0%83%E8%AF%95/" itemprop="url" rel="index">
+                    <span itemprop="name">调试</span>
+                  </a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a href="https://blog.csdn.net/mychen/article/details/80001687" target="_blank" rel="noopener">转载自我的CSDN Blog</a></p><p>前段时间有个客户报了个问题：他们的一个视频播放app在我们的Android 6.0 SDK上出现内存泄露，我用showmap查了下，该app在长时间播放视频过程中出现native heap内存的持续泄露。</p><p>原以为只要把libc debug开关打开了，就能很容易查出问题点，却没想到碰到了一些意想不到的情况。</p><a id="more"></a>
+
+
+<h2 id="libc-debug开关使能之后，在我们的Android6-0-SDK上执行所有命令及程序都会异常崩溃，系统跑不起来了"><a href="#libc-debug开关使能之后，在我们的Android6-0-SDK上执行所有命令及程序都会异常崩溃，系统跑不起来了" class="headerlink" title="libc debug开关使能之后，在我们的Android6.0 SDK上执行所有命令及程序都会异常崩溃，系统跑不起来了"></a>libc debug开关使能之后，在我们的Android6.0 SDK上执行所有命令及程序都会异常崩溃，系统跑不起来了</h2><p>是的，通过”setprop libc.debug.malloc 1”使能libc debug后，所有命令都跑不了了，客户的app也跑不了了，出现的Fatal信息如下：   </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">215 F DEBUG   : ABI: &apos;arm&apos;</span><br><span class="line">215 F DEBUG   : pid: 893, tid: 893, name: iptables  &gt;&gt;&gt; /system/bin/iptables &lt;&lt;&lt;</span><br><span class="line">215 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x7</span><br><span class="line">614 W NativeCrashListener: Couldn&apos;t find ProcessRecord for pid 893</span><br><span class="line">215 F DEBUG   :     r0 ffffffff  r1 0000000d  r2 be97e1a4  r3 00000000</span><br><span class="line">215 E DEBUG   : AM write failed: Broken pipe</span><br><span class="line">215 F DEBUG   :     r4 be97e1a4  r5 0000000d  r6 be97e298  r7 00000000</span><br><span class="line">215 F DEBUG   :     r8 be97e298  r9 00000084  sl b6ed5bbc  fp 00000000</span><br><span class="line">215 F DEBUG   :     ip b6ee606c  sp be97e178  lr b6ecf791  pc b6ecfca2  cpsr 200e0030</span><br><span class="line">215 F DEBUG   : </span><br><span class="line">215 F DEBUG   : backtrace:</span><br><span class="line">215 F DEBUG   :     #00 pc 00077ca2  /system/lib/libc++.so</span><br><span class="line">215 F DEBUG   :     #01 pc 0007778d  /system/lib/libc++.so</span><br><span class="line">215 F DEBUG   :     #02 pc 0007742d  /system/lib/libc++.so</span><br><span class="line">215 F DEBUG   :     #03 pc 00048a3f  /system/lib/libc++.so (__gxx_personality_v0+290)</span><br><span class="line">215 F DEBUG   :     #04 pc 0001e384  /system/bin/iptables (__gnu_Unwind_Backtrace+160)</span><br><span class="line">215 F DEBUG   :     #05 pc 0001ecb4  /system/bin/iptables (___Unwind_Backtrace+20)</span><br></pre></td></tr></table></figure>
+<p>异常发生在libc++库中，头大，查了半天没找到原因。</p>
+<p>试用了下valgrind，发现速度奇慢，且无法用在客户app上，用valgrind加载其它系统自带的app也是跑不起来，果断放弃。</p>
+<p>还是想办法把Android自带的libc debug用起来。正向查不出来，那就曲线救国吧。</p>
+<p>我修改Android5.1 SDK上面的libc++源码，添加必要函数后编译完成，替换掉样机上原来的libc++.so（样机上跑的是Android6.0系统），居然能工作正常，而且打开libc debug开关后，执行命令也不会崩溃了。</p>
+<p>使能libc debug后，打开app，结果又出状况了…</p>
+<h2 id="libc-debug使能后，客户app无法工作了"><a href="#libc-debug使能后，客户app无法工作了" class="headerlink" title="libc debug使能后，客户app无法工作了"></a>libc debug使能后，客户app无法工作了</h2><p>在没有打开libc debug时候，客户的app是能正常工作的，但通过以下命令使能libc debug之后:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">setprop libc.debug.malloc 1</span><br><span class="line">stop</span><br><span class="line">start</span><br></pre></td></tr></table></figure>
+<p>然后打开客户app，一播放视频就会异常退出，异常LOG如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">ABI: &apos;arm&apos;</span><br><span class="line">pid: 4011, tid: 4104, name: AsyncTask #1  &gt;&gt;&gt; com.hikvision.stabilitytesttool &lt;&lt;&lt;</span><br><span class="line">signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x59a70ecf</span><br><span class="line">    r0 00000001  r1 00004080  r2 59a70ecf  r3 00000008</span><br><span class="line">    r4 00004080  r5 9edf3b60  r6 00000080  r7 00000000</span><br><span class="line">    r8 9edf361c  r9 9edf36e0  sl 80000000  fp 00000005</span><br><span class="line">    ip 9f488158  sp 9edf34f0  lr 9f651971  pc 9f6514d8  cpsr 240b1c30</span><br><span class="line"></span><br><span class="line">backtrace:</span><br><span class="line">    #00 pc 0027e4d8  /data/app/com.hikvision.stabilitytesttool-1/lib/arm/libPlayCtrl.so</span><br><span class="line">    #01 pc 0027e96d  /data/app/com.hikvision.stabilitytesttool-1/lib/arm/libPlayCtrl.so</span><br><span class="line">    #02 pc 0027eb61  /data/app/com.hikvision.stabilitytesttool-1/lib/arm/libPlayCtrl.so</span><br><span class="line">    #03 pc 002722d5  /data/app/com.hikvision.stabilitytesttool-1/lib/arm/libPlayCtrl.so</span><br><span class="line">    #04 pc 00008a03  /system/lib/libc_malloc_debug_leak.so (_Unwind_Backtrace+130)</span><br><span class="line">    #05 pc 000060ef  /system/lib/libc_malloc_debug_leak.so</span><br><span class="line">    #06 pc 00006b69  /system/lib/libc_malloc_debug_leak.so (leak_malloc+84)</span><br><span class="line">    #07 pc 00272851  /data/app/com.hikvision.stabilitytesttool-1/lib/arm/libPlayCtrl.so (_Znwj+12)</span><br><span class="line">    #08 pc 000b51bf  /data/app/com.hikvision.stabilitytesttool-1/lib/arm/libPlayCtrl.so (_ZN9CRenderer16InitVideoDisplayEi+102)</span><br><span class="line">    #09 pc 000b4d61  /data/app/com.hikvision.stabilitytesttool-1/lib/arm/libPlayCtrl.so (_ZN9CRenderer14SetVideoWindowEPvii+122)</span><br></pre></td></tr></table></figure>
+<p>因为打开了libc debug，因此在malloc时候会保存内存分配的调用路径，从上面异常backtrace可以看到在获得该调用路径时候崩溃了。崩溃点发生在客户的库文件中。</p>
+<p>由于没有客户app源码，无法正向去查这个异常崩溃问题，所以，依然走曲线救国的道路…</p>
+<p>我修改libc，在反查调用路径时候，把客户app中会导致异常的线程都过滤掉，之后，客户app终于能够工作了 ^_^</p>
+<h2 id="使用heapsnap工具获得heap的backtrace信息"><a href="#使用heapsnap工具获得heap的backtrace信息" class="headerlink" title="使用heapsnap工具获得heap的backtrace信息"></a>使用heapsnap工具获得heap的backtrace信息</h2><p>通过前面的更改，终于能用libc debug了，接下来就是用heapsnap工具抓取客户app的heap详细信息了。<br>heapsnap工具可以参考这篇：<a href="https://blog.csdn.net/mychen/article/details/79571883" target="_blank" rel="noopener">《HeapSnap工具原理及其应用》</a><br>以查明内存泄露的地方，很快查到了两个异常的内存泄露点：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">size       12, dup 214822</span><br><span class="line">....</span><br><span class="line">size       12, dup 53687, 0xb4ce3e20, 0xb6d26fa8, 0xb4bcdb8a, 0xb4bbf944, 0xb4bc78e0, 0xb4ba2a96, 0xb4acb512, 0xb49732f4, 0xb6e2770c, 0xb6e27780, 0xb6bb4aee, 0xb6bad77a, 0xb6bb2e8c, 0xb6bc3cf2, 0xb5c71588, 0xb5c70200, 0xb5c73516, 0xb5bf6e1c, 0xb5bf6c84, 0xb5bf8c4e, 0xb5bf768e, 0xb6ec8854, 0xb6cb27e6, 0xb6c8a332</span><br><span class="line">          #00  pc 00006e20  /system/lib/libc_malloc_debug_leak.so (leak_malloc+83)</span><br><span class="line">          #01  pc 00049fa8  /system/lib/libc++.so (operator new(unsigned int)+15)</span><br><span class="line">          #02  pc 0034cb8a  /system/lib/libart.so (art::ThreadList::Register(art::Thread*)+257)</span><br><span class="line">          #03  pc 0033e944  /system/lib/libart.so (art::Thread::Init(art::ThreadList*, art::JavaVMExt*, art::JNIEnvExt*)+487)</span><br><span class="line">          #04  pc 003468e0  /system/lib/libart.so (art::Thread::Attach(char const*, bool, _jobject*, bool)+135)</span><br><span class="line">          #05  pc 00321a96  /system/lib/libart.so (art::Runtime::AttachCurrentThread(char const*, bool, _jobject*, bool)+13)</span><br><span class="line">          #06  pc 0024a512  /system/lib/libart.so</span><br><span class="line">          #07  pc 000f22f4  /system/lib/libart.so</span><br><span class="line">          #08  pc 0008870c  /system/lib/libandroid_runtime.so (android::JNISurfaceTextureContext::getJNIEnv(bool*)+47)</span><br><span class="line">          #09  pc 00088780  /system/lib/libandroid_runtime.so (android::JNISurfaceTextureContext::onFrameAvailable(android::BufferItem const&amp;)+11)</span><br><span class="line">          #10  pc 00032aee  /system/lib/libgui.so (android::ConsumerBase::onFrameAvailable(android::BufferItem const&amp;)+93)</span><br><span class="line">          #11  pc 0002b77a  /system/lib/libgui.so (android::BufferQueue::ProxyConsumerListener::onFrameAvailable(android::BufferItem const&amp;)+45)</span><br><span class="line">          #12  pc 00030e8c  /system/lib/libgui.so (android::BufferQueueProducer::queueBuffer(int, android::IGraphicBufferProducer::QueueBufferInput const&amp;, android::IGraphicBufferProducer::QueueBufferOutput*)+1803)</span><br><span class="line">          #13  pc 00041cf2  /system/lib/libgui.so (android::Surface::queueBuffer(ANativeWindowBuffer*, int)+641)</span><br><span class="line">          #14  pc 0006b588  /system/lib/libstagefright.so (android::ACodec::BaseState::onOutputBufferDrained(android::sp&lt;android::AMessage&gt; const&amp;)+483)</span><br><span class="line">          #15  pc 0006a200  /system/lib/libstagefright.so (android::ACodec::BaseState::onMessageReceived(android::sp&lt;android::AMessage&gt; const&amp;)+619)</span><br><span class="line">          #16  pc 0006d516  /system/lib/libstagefright.so (android::ACodec::ExecutingState::onMessageReceived(android::sp&lt;android::AMessage&gt; const&amp;)+481)</span><br><span class="line">          #17  pc 0000be1c  /system/lib/libstagefright_foundation.so (android::AHierarchicalStateMachine::handleMessage(android::sp&lt;android::AMessage&gt; const&amp;)+63)</span><br><span class="line">          #18  pc 0000bc84  /system/lib/libstagefright_foundation.so (android::AHandler::deliverMessage(android::sp&lt;android::AMessage&gt; const&amp;)+15)</span><br><span class="line">          #19  pc 0000dc4e  /system/lib/libstagefright_foundation.so (android::AMessage::deliver()+53)</span><br><span class="line">          #20  pc 0000c68e  /system/lib/libstagefright_foundation.so (android::ALooper::loop()+221)</span><br><span class="line">          #21  pc 00010854  /system/lib/libutils.so (android::Thread::_threadLoop(void*)+111)</span><br><span class="line">          #22  pc 000417e6  /system/lib/libc.so</span><br><span class="line">          #23  pc 00019332  /system/lib/libc.so</span><br></pre></td></tr></table></figure>
+<p>上述信息中，size后面数值是申请内存的大小，dup后面数值是申请的次数。<br>这两处泄露点都是12字节的内存泄露，其中一个申请了214822次，另一个申请了53687次。前面一处的heap信息没有输出backtrace，是因为我们修改libc把异常线程过滤掉的缘故；而后面的heap信息中就带有backtrace了。</p>
+<p>通过解读这个backtrace，可以看到libart库中的art::ThreadList::Register函数中申请了内存，但没有释放掉。</p>
+<h2 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h2><p>最后，修改libcxx/include/list中的remove函数，重新编译art推送到样机上，再用heapsnap抓取heap信息，前面发现的那两处heap泄露点都已经不存在。至此，内存泄露问题终于解决了。</p>
+<p>如果没有libc debug，还有哪些方式可以查这个问题呢？</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/android/" rel="tag"># android</a>
+              <a href="/tags/malloc/" rel="tag"># malloc</a>
+              <a href="/tags/debug/" rel="tag"># debug</a>
+              <a href="/tags/heapsnap/" rel="tag"># heapsnap</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/11/23/HeapSnap%E5%B7%A5%E5%85%B7%E5%8E%9F%E7%90%86%E5%8F%8A%E5%85%B6%E5%BA%94%E7%94%A8/" rel="prev" title="HeapSnap工具原理及其应用">
+      <i class="fa fa-chevron-left"></i> HeapSnap工具原理及其应用
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/11/23/Android-sensor%E6%95%B0%E6%8D%AE%E9%80%9A%E8%BF%87matlab%E5%AE%9E%E6%97%B6%E6%98%BE%E7%A4%BA%E6%B3%A2%E5%BD%A2%E5%9B%BE/" rel="next" title="Android sensor数据通过matlab实时显示波形图">
+      Android sensor数据通过matlab实时显示波形图 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#libc-debug开关使能之后，在我们的Android6-0-SDK上执行所有命令及程序都会异常崩溃，系统跑不起来了"><span class="nav-number">1.</span> <span class="nav-text">libc debug开关使能之后，在我们的Android6.0 SDK上执行所有命令及程序都会异常崩溃，系统跑不起来了</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#libc-debug使能后，客户app无法工作了"><span class="nav-number">2.</span> <span class="nav-text">libc debug使能后，客户app无法工作了</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#使用heapsnap工具获得heap的backtrace信息"><span class="nav-number">3.</span> <span class="nav-text">使用heapsnap工具获得heap的backtrace信息</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#最后"><span class="nav-number">4.</span> <span class="nav-text">最后</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Albuer"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">Albuer</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">7</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albuer" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albuer" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/mailto:albuer@gmail.com" title="E-Mail → mailto:albuer@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Albuer</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v4.0.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v7.5.0
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script>
+<script src="/js/schemes/pisces.js"></script>
+<script src="/js/next-boot.js"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID: '66fb0bd64bf2a984713f',
+      clientSecret: 'ae827dae232ed3dc1b43004bc4aa53808a15c5a3',
+      repo: 'albuer.github.io',
+      owner: 'albuer',
+      admin: ['albuer'],
+      id: '00a4f08ec7ea5035c5ac31684324f777',
+        language: 'zh-CN',
+      distractionFreeMode: 'true'
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+</script>
+
+</body>
+</html>

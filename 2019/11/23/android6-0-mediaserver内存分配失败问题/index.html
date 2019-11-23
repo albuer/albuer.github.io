@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '7.5.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":true,"show_result":true,"style":"default"},
+    back2top: {"enable":true,"sidebar":true,"scrollpercent":true},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="转载自我的CSDN Blog有客户反馈视频播放一段时间就卡住了，且是必现。从logcat信息上发现是mediaserver进程异常崩溃了，Log如下：12345678910111213141516171819202122232425262728293031323334ABI: &amp;apos;arm&amp;apos;pid: 246, tid: 1710, name: DecoderAudio  &amp;gt;&amp;">
+<meta name="keywords" content="android,media">
+<meta property="og:type" content="article">
+<meta property="og:title" content="android6.0 mediaserver内存分配失败问题">
+<meta property="og:url" content="https:&#x2F;&#x2F;albuer.github.io&#x2F;2019&#x2F;11&#x2F;23&#x2F;android6-0-mediaserver%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%A4%B1%E8%B4%A5%E9%97%AE%E9%A2%98&#x2F;index.html">
+<meta property="og:site_name" content="Albuer的博客">
+<meta property="og:description" content="转载自我的CSDN Blog有客户反馈视频播放一段时间就卡住了，且是必现。从logcat信息上发现是mediaserver进程异常崩溃了，Log如下：12345678910111213141516171819202122232425262728293031323334ABI: &amp;apos;arm&amp;apos;pid: 246, tid: 1710, name: DecoderAudio  &amp;gt;&amp;">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2019-11-23T09:21:49.247Z">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://albuer.github.io/2019/11/23/android6-0-mediaserver%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%A4%B1%E8%B4%A5%E9%97%AE%E9%A2%98/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>android6.0 mediaserver内存分配失败问题 | Albuer的博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Albuer的博客</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+
+  <a href="https://github.com/albuer" class="github-corner" title="进入我的GitHub" aria-label="进入我的GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://albuer.github.io/2019/11/23/android6-0-mediaserver%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E5%A4%B1%E8%B4%A5%E9%97%AE%E9%A2%98/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="Albuer">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Albuer的博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          android6.0 mediaserver内存分配失败问题
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2019年11月23日 17:09:08 / 修改时间：17:21:49" itemprop="dateCreated datePublished" datetime="2019-11-23T17:09:08+08:00">2019年11月23日</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%B0%83%E8%AF%95/" itemprop="url" rel="index">
+                    <span itemprop="name">调试</span>
+                  </a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a href="https://blog.csdn.net/mychen/article/details/80091644" target="_blank" rel="noopener">转载自我的CSDN Blog</a></p><p>有客户反馈视频播放一段时间就卡住了，且是必现。从logcat信息上发现是mediaserver进程异常崩溃了，Log如下：</p><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">ABI: &apos;arm&apos;</span><br><span class="line">pid: 246, tid: 1710, name: DecoderAudio  &gt;&gt;&gt; /system/bin/mediaserver &lt;&lt;&lt;</span><br><span class="line">signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0</span><br><span class="line">    r0 00000000  r1 89c17780  r2 00001180  r3 00000000</span><br><span class="line">    r4 b79822a0  r5 00001200  r6 89c17704  r7 89c17740</span><br><span class="line">    r8 89c17738  r9 00000000  sl 03598a78  fp 00000000</span><br><span class="line">    ip b64234c8  sp 89c176f8  lr b63eaf75  pc b6a8794c  cpsr 200f0010</span><br><span class="line">    d0  f099f6d8f041f6c2  d1  f108f776f10ef738</span><br><span class="line">    d2  f08af7eff0a6f79c  d3  f0f3f71df0c6f7ef</span><br><span class="line">    d4  f171f601f106f624  d5  f366f728f260f699</span><br><span class="line">    d6  f5a8f7bff45ff779  d7  f676f741f6c2f7d2</span><br><span class="line">    d8  3ef5d867c3ece2a5  d9  412e848000000000</span><br><span class="line">    d10 0000000000000000  d11 0000000000000000</span><br><span class="line">    d12 0000000000000000  d13 0000000000000000</span><br><span class="line">    d14 0000000000000000  d15 0000000000000000</span><br><span class="line">    d16 0000000000000000  d17 0000000000000000</span><br><span class="line">    d18 3ff0000000000000  d19 4091780000000000</span><br><span class="line">    d20 be5ae5d13e0705cf  d21 4037f9dcb5112287</span><br><span class="line">    d22 bf2a017308872714  d23 3de5d93a5acfd57c</span><br><span class="line">    d24 3ec71de357b1fe7d  d25 3e21e0e0299e8cc5</span><br><span class="line">    d26 4037f9dcb5112287  d27 40032e4a2a741b9f</span><br><span class="line">    d28 3f895d470d6e9486  d29 3f895d470d6e9486</span><br><span class="line">    d30 3fe797c6a435ce85  d31 400921fb54400000</span><br><span class="line">    scr 68000012</span><br><span class="line"></span><br><span class="line">backtrace:</span><br><span class="line">    #00 pc 0001694c  /system/lib/libc.so (memcpy+112)</span><br><span class="line">    #01 pc 00042f71  /system/lib/librkffplayer.so (_ZN7android13RkAudioPlayer10queueAudioEPsix+56)</span><br><span class="line">    #02 pc 0004d509  /system/lib/librkffplayer.so (_ZN7android9FFMPlayer6decodeEPsixxiPv+652)</span><br><span class="line">    #03 pc 0003167f  /system/lib/librkffplayer.so (_ZN12DecoderAudio17SoftDecodeProcessEP8AVPacket+910)</span><br><span class="line">    #04 pc 00030ea9  /system/lib/librkffplayer.so (_ZN12DecoderAudio6decodeEPv+280)</span><br><span class="line">    #05 pc 00034203  /system/lib/librkffplayer.so (_ZN12PlayerThread11startThreadEPv+46)</span><br><span class="line">    #06 pc 000417c7  /system/lib/libc.so (_ZL15__pthread_startPv+30)</span><br><span class="line">    #07 pc 00019313  /system/lib/libc.so (__start_thread+6)</span><br></pre></td></tr></table></figure><a id="more"></a>
+
+
+
+<p>在导致异常的代码附近添加LOG确认了是malloc调用返回空指针，内存分配失败了，但查看kmsg并未发现LMK或者OOM出现。</p>
+<p>查看系统limit没有问题：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">root@rk3288:/ # ulimit -Sa</span><br><span class="line">time(cpu-seconds)    unlimited</span><br><span class="line">file(blocks)         unlimited</span><br><span class="line">coredump(blocks)     0</span><br><span class="line">data(KiB)            unlimited</span><br><span class="line">stack(KiB)           8192</span><br><span class="line">lockedmem(KiB)       64</span><br><span class="line">nofiles(descriptors) 1024</span><br><span class="line">processes            10576</span><br><span class="line">sigpending           10576</span><br><span class="line">msgqueue(bytes)      819200</span><br><span class="line">maxnice              40</span><br><span class="line">maxrtprio            0</span><br><span class="line">resident-set(KiB)    unlimited</span><br><span class="line">address-space(KiB)   unlimited</span><br><span class="line"></span><br><span class="line">root@rk3288:/ # ulimit -Ha</span><br><span class="line">time(cpu-seconds)    unlimited</span><br><span class="line">file(blocks)         unlimited</span><br><span class="line">coredump(blocks)     unlimited</span><br><span class="line">data(KiB)            unlimited</span><br><span class="line">stack(KiB)           unlimited</span><br><span class="line">lockedmem(KiB)       64</span><br><span class="line">nofiles(descriptors) 4096</span><br><span class="line">processes            10576</span><br><span class="line">sigpending           10576</span><br><span class="line">msgqueue(bytes)      819200</span><br><span class="line">maxnice              40</span><br><span class="line">maxrtprio            0</span><br><span class="line">resident-set(KiB)    unlimited</span><br><span class="line">address-space(KiB)   unlimited</span><br></pre></td></tr></table></figure>
+
+<p>再看mediaserver进程，发现它的address-space被限制在1370941585 bytes:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">130|root@rk3288:/ # cat /proc/4506/limits                                      </span><br><span class="line">Limit                     Soft Limit           Hard Limit           Units     </span><br><span class="line">Max cpu time              unlimited            unlimited            seconds   </span><br><span class="line">Max file size             unlimited            unlimited            bytes     </span><br><span class="line">Max data size             unlimited            unlimited            bytes     </span><br><span class="line">Max stack size            8388608              unlimited            bytes     </span><br><span class="line">Max core file size        0                    unlimited            bytes     </span><br><span class="line">Max resident set          unlimited            unlimited            bytes     </span><br><span class="line">Max processes             10576                10576                processes </span><br><span class="line">Max open files            1024                 4096                 files     </span><br><span class="line">Max locked memory         65536                65536                bytes     </span><br><span class="line">Max address space         1370941585           unlimited            bytes     </span><br><span class="line">Max file locks            unlimited            unlimited            locks     </span><br><span class="line">Max pending signals       10576                10576                signals   </span><br><span class="line">Max msgqueue size         819200               819200               bytes     </span><br><span class="line">Max nice priority         40                   40                   </span><br><span class="line">Max realtime priority     0                    0                    </span><br><span class="line">Max realtime timeout      unlimited            unlimited            us</span><br></pre></td></tr></table></figure>
+
+<p>通过命令修改进程的limit，重新测试视频正常:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">prlimit 4506 9 -1 -1</span><br></pre></td></tr></table></figure>
+
+<p>google从Android6.0开始，对mediaserver进程的虚拟内存大小做出了限制，默认值是系统总内存的65%，这在普通的手机及平板等产品上没有问题，但在一些定制的产品，比如低内存的电视盒子，或者是多路视频同时播放的场景，这些产品在播放视频时候对内存的消耗在系统中占比可能超过65%，从而触发limit机制导致内存申请失败。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/android/" rel="tag"># android</a>
+              <a href="/tags/media/" rel="tag"># media</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/11/23/Android-sensor%E6%95%B0%E6%8D%AE%E9%80%9A%E8%BF%87matlab%E5%AE%9E%E6%97%B6%E6%98%BE%E7%A4%BA%E6%B3%A2%E5%BD%A2%E5%9B%BE/" rel="prev" title="Android sensor数据通过matlab实时显示波形图">
+      <i class="fa fa-chevron-left"></i> Android sensor数据通过matlab实时显示波形图
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2019/11/23/Android8-0%E5%B9%B3%E5%8F%B0Camera-monkey%E6%8B%B7%E6%9C%BA%E5%8D%A1%E6%AD%BB%E5%BC%82%E5%B8%B8/" rel="next" title="Android8.0平台Camera monkey拷机卡死异常">
+      Android8.0平台Camera monkey拷机卡死异常 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Albuer"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">Albuer</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">7</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albuer" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albuer" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/mailto:albuer@gmail.com" title="E-Mail → mailto:albuer@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Albuer</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v4.0.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v7.5.0
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script>
+<script src="/js/schemes/pisces.js"></script>
+<script src="/js/next-boot.js"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID: '66fb0bd64bf2a984713f',
+      clientSecret: 'ae827dae232ed3dc1b43004bc4aa53808a15c5a3',
+      repo: 'albuer.github.io',
+      owner: 'albuer',
+      admin: ['albuer'],
+      id: '764fd814872ff3aa4793d02bb4ed5a5d',
+        language: 'zh-CN',
+      distractionFreeMode: 'true'
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '7.5.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":true,"show_result":true,"style":"default"},
+    back2top: {"enable":true,"sidebar":true,"scrollpercent":true},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="转载自我的CSDN Blog异常现象一次新的视频播放卡死异常：4路视频10秒切换拷机，出现测试app画面卡死的异常，可以切换到其它界面。CPU负载查看负载，发现异常app有线程跑满CPU，且CPU大多消耗在内核层123456789101112User 2%, System 23%, IOW 0%, IRQ 0%User 30 + Nice 0 + Sys 283 + Idle 899 + IOW">
+<meta name="keywords" content="android,media,debug">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一次新的视频播放卡死异常">
+<meta property="og:url" content="https:&#x2F;&#x2F;albuer.github.io&#x2F;2019&#x2F;11&#x2F;23&#x2F;%E4%B8%80%E6%AC%A1%E6%96%B0%E7%9A%84%E8%A7%86%E9%A2%91%E6%92%AD%E6%94%BE%E5%8D%A1%E6%AD%BB%E5%BC%82%E5%B8%B8&#x2F;index.html">
+<meta property="og:site_name" content="Albuer的博客">
+<meta property="og:description" content="转载自我的CSDN Blog异常现象一次新的视频播放卡死异常：4路视频10秒切换拷机，出现测试app画面卡死的异常，可以切换到其它界面。CPU负载查看负载，发现异常app有线程跑满CPU，且CPU大多消耗在内核层123456789101112User 2%, System 23%, IOW 0%, IRQ 0%User 30 + Nice 0 + Sys 283 + Idle 899 + IOW">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2019-11-23T09:19:47.129Z">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://albuer.github.io/2019/11/23/%E4%B8%80%E6%AC%A1%E6%96%B0%E7%9A%84%E8%A7%86%E9%A2%91%E6%92%AD%E6%94%BE%E5%8D%A1%E6%AD%BB%E5%BC%82%E5%B8%B8/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>一次新的视频播放卡死异常 | Albuer的博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Albuer的博客</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+
+  <a href="https://github.com/albuer" class="github-corner" title="进入我的GitHub" aria-label="进入我的GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://albuer.github.io/2019/11/23/%E4%B8%80%E6%AC%A1%E6%96%B0%E7%9A%84%E8%A7%86%E9%A2%91%E6%92%AD%E6%94%BE%E5%8D%A1%E6%AD%BB%E5%BC%82%E5%B8%B8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="Albuer">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Albuer的博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          一次新的视频播放卡死异常
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2019年11月23日 17:13:14 / 修改时间：17:19:47" itemprop="dateCreated datePublished" datetime="2019-11-23T17:13:14+08:00">2019年11月23日</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%B0%83%E8%AF%95/" itemprop="url" rel="index">
+                    <span itemprop="name">调试</span>
+                  </a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p><a href="https://blog.csdn.net/mychen/article/details/80323327" target="_blank" rel="noopener">转载自我的CSDN Blog</a></p><h3 id="异常现象"><a href="#异常现象" class="headerlink" title="异常现象"></a>异常现象</h3><p>一次新的视频播放卡死异常：4路视频10秒切换拷机，出现测试app画面卡死的异常，可以切换到其它界面。</p><h3 id="CPU负载"><a href="#CPU负载" class="headerlink" title="CPU负载"></a>CPU负载</h3><p>查看负载，发现异常app有线程跑满CPU，且CPU大多消耗在内核层</p><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">User 2%, System 23%, IOW 0%, IRQ 0%</span><br><span class="line">User 30 + Nice 0 + Sys 283 + Idle 899 + IOW 0 + IRQ 0 + SIRQ 0 = 1212</span><br><span class="line"></span><br><span class="line">  PID   TID PR CPU% S     VSS     RSS PCY UID      Thread          Proc</span><br><span class="line"> 2768 29663  1  24% R 1398368K 182332K  fg u0_a53   Thread-13095407 com.test33.demo</span><br><span class="line">32103 32103  2   0% R   2364K    948K  fg root     top             top</span><br><span class="line">   77    77  0   0% S      0K      0K  fg root     fb-vsync        </span><br><span class="line">  193   222  0   0% S 171340K  15512K  fg system   mali-renderer   /system/bin/surfaceflinger</span><br><span class="line">  190   190  0   0% S   2472K    792K  fg root     lmkd            /system/bin/lmkd</span><br><span class="line">    8     8  0   0% S      0K      0K  fg root     rcu_preempt     </span><br><span class="line">    9     9  0   0% S      0K      0K  fg root     rcu_bh          </span><br><span class="line">   10    10  3   0% S      0K      0K  fg root     rcu_sched</span><br></pre></td></tr></table></figure><a id="more"></a>
+
+
+
+
+<h3 id="debuggerd"><a href="#debuggerd" class="headerlink" title="debuggerd"></a>debuggerd</h3><p>使用debuggerd获得该进程的backtrace及寄存器信息:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">ABI: &apos;arm&apos;</span><br><span class="line">pid: 2768, tid: 29663, name: Thread-13095407  &gt;&gt;&gt; com.test33.demo &lt;&lt;&lt;</span><br><span class="line">signal 19 (SIGSTOP), code 0 (SI_USER), fault addr --------</span><br><span class="line">    r0 00000000  r1 00001000  r2 00000098  r3 9c29b000</span><br><span class="line">    r4 9c19f000  r5 9c29c564  r6 9c29c000  r7 b8b65468</span><br><span class="line">    r8 9c1a0000  r9 9c1a0000  sl 9c19f000  fp ffffffff</span><br><span class="line">    ip b8b65468  sp 9c29c558  lr b4c8982b  pc b4c89832  cpsr 80070030</span><br><span class="line">...</span><br><span class="line">backtrace:</span><br><span class="line">    #00 pc 0034d832  /system/lib/libart.so (_ZN3art6Thread25InstallImplicitProtectionEv+233)</span><br><span class="line">    #01 pc 0034da73  /system/lib/libart.so (_ZN3art6Thread12InitStackHwmEv+210)</span><br><span class="line">    #02 pc 0034dca1  /system/lib/libart.so (_ZN3art6Thread4InitEPNS_10ThreadListEPNS_9JavaVMExtEPNS_9JNIEnvExtE+112)</span><br><span class="line">    #03 pc 00354b65  /system/lib/libart.so (_ZN3art6Thread6AttachEPKcbP8_jobjectb+136)</span><br><span class="line">    #04 pc 0032fc4f  /system/lib/libart.so (_ZN3art7Runtime19AttachCurrentThreadEPKcbP8_jobjectb+14)</span><br><span class="line">    #05 pc 002586cb  /system/lib/libart.so (_ZN3art3JII19AttachCurrentThreadEP7_JavaVMPP7_JNIEnvPv+158)</span><br><span class="line">    #06 pc 00089335  /data/app/com.test33.demo-1/lib/arm/libPlayCtrl.so (_ZN13CHKMediaCodec10OutputDataERl+64)</span><br><span class="line">...</span><br><span class="line">memory map:</span><br><span class="line">9c19f000-9c29cfff rw-         0     fe000  [stack:29663]</span><br></pre></td></tr></table></figure>
+
+<h3 id="查看异常位置的源代码及其汇编"><a href="#查看异常位置的源代码及其汇编" class="headerlink" title="查看异常位置的源代码及其汇编"></a>查看异常位置的源代码及其汇编</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">for (uint8_t* p = stack_top; p &gt;= pregion; p -= kPageSize) &#123;</span><br><span class="line">    dont_optimize_this = *p;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">34d826:       f557 eb52       blx     a4ecc &lt;mprotect@plt&gt;</span><br><span class="line">34d82a:       42b4            cmp     r4, r6</span><br><span class="line">34d82c:       bf98            it      ls</span><br><span class="line">34d82e:       4633            movls   r3, r6</span><br><span class="line">34d830:       d807            bhi.n   34d842 &lt;_ZN3art6Thread25InstallImplicitProtectionEv+0xfa&gt;</span><br><span class="line">34d832:       781a            ldrb    r2, [r3, #0]</span><br></pre></td></tr></table></figure>
+<p>当前PC=0x34d832，该指令从r3寄存器所指向地址中取数据保存到r2，r3指向线程栈，寄存器的数据看起来没什么问题。</p>
+<h3 id="PERF"><a href="#PERF" class="headerlink" title="PERF"></a>PERF</h3><p>我们再来看下此时内核在做什么，为什么会消耗这么多的CPU？　使用perf工具抓异常线程的信息如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"># Overhead          Command      Shared Object                                                                                                                Symbol</span><br><span class="line"># ........  ...............  .................  ....................................................................................................................</span><br><span class="line">#</span><br><span class="line">    29.60%  com.test33.demo  [kernel.kallsyms]  [k] do_page_fault                                                                                                   </span><br><span class="line">            |</span><br><span class="line">            --- do_page_fault</span><br><span class="line">                do_DataAbort</span><br><span class="line">                __dabt_usr</span><br><span class="line">                art::StackVisitor::GetVRegFromOptimizedCode(art::ArtMethod*, unsigned short, art::VRegKind, unsigned int*) const</span><br><span class="line"></span><br><span class="line">    26.83%  com.test33.demo  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore                                                                                     </span><br><span class="line">            |</span><br><span class="line">            --- _raw_spin_unlock_irqrestore</span><br><span class="line">               |          </span><br><span class="line">               |--52.88%-- do_page_fault</span><br><span class="line">               |          do_DataAbort</span><br><span class="line">               |          __dabt_usr</span><br><span class="line">               |          art::StackVisitor::GetVRegFromOptimizedCode(art::ArtMethod*, unsigned short, art::VRegKind, unsigned int*) const</span><br><span class="line">               |          </span><br><span class="line">               |--46.95%-- __down_read_trylock</span><br><span class="line">               |          do_page_fault</span><br><span class="line">               |          do_DataAbort</span><br><span class="line">               |          __dabt_usr</span><br><span class="line">               |          art::StackVisitor::GetVRegFromOptimizedCode(art::ArtMethod*, unsigned short, art::VRegKind, unsigned int*) const</span><br><span class="line">                --0.17%-- [...]</span><br><span class="line"></span><br><span class="line">     9.65%  com.test33.demo  libart.so          [.] art::StackVisitor::GetVRegFromOptimizedCode(art::ArtMethod*, unsigned short, art::VRegKind, unsigned int*) const</span><br><span class="line">            |</span><br><span class="line">            --- art::StackVisitor::GetVRegFromOptimizedCode(art::ArtMethod*, unsigned short, art::VRegKind, unsigned int*) const</span><br><span class="line"></span><br><span class="line">     7.86%  com.test33.demo  [kernel.kallsyms]  [k] _raw_spin_unlock                                                                                                </span><br><span class="line">            |</span><br><span class="line">            --- _raw_spin_unlock</span><br><span class="line">                handle_pte_fault</span><br><span class="line">                __handle_mm_fault</span><br><span class="line">                handle_mm_fault</span><br><span class="line">                do_page_fault</span><br><span class="line">                do_DataAbort</span><br><span class="line">                __dabt_usr</span><br><span class="line">                art::StackVisitor::GetVRegFromOptimizedCode(art::ArtMethod*, unsigned short, art::VRegKind, unsigned int*) const</span><br></pre></td></tr></table></figure>
+<p>看起来是程序在访问线程栈时候，那块page已经不存在，所以触发了kernel的page fault机制去分配page，但为何kernel一直陷在page fault中无法返回？</p>
+<p>查看了系统可用内存还很充足，不存在分配不到内存的情况。</p>
+<h3 id="GDB"><a href="#GDB" class="headerlink" title="GDB"></a>GDB</h3><p>用gdb连接上去修改r3寄存器内容，让它指向其它page则能成功执行当前指令，进入下一条指令，否则如果还指向异常的page，则会停留在当前指令上:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">(gdb) info register</span><br><span class="line">r0             0x0	0</span><br><span class="line">r1             0x1000	4096</span><br><span class="line">r2             0x98	152</span><br><span class="line">r3             0x9c29b000	2619977728</span><br><span class="line">r4             0x9c19f000	2618945536</span><br><span class="line">r5             0x9c29c564	2619983204</span><br><span class="line">r6             0x9c29c000	2619981824</span><br><span class="line">r7             0xb8b65468	3098956904</span><br><span class="line">r8             0x9c1a0000	2618949632</span><br><span class="line">r9             0x9c1a0000	2618949632</span><br><span class="line">r10            0x9c19f000	2618945536</span><br><span class="line">r11            0xffffffff	4294967295</span><br><span class="line">r12            0xb8b65468	3098956904</span><br><span class="line">sp             0x9c29c558	0x9c29c558</span><br><span class="line">lr             0xb4c8982b	-1261922261</span><br><span class="line">pc             0xb4c89832	0xb4c89832</span><br><span class="line">cpsr           0x80070030	-2147024848</span><br><span class="line">(gdb) set $r3=0x9c29c000</span><br><span class="line">(gdb) si</span><br><span class="line">0xb4c89834 in ?? ()</span><br></pre></td></tr></table></figure>
+<p>修改r3的值为另外page时候，si指令能成功执行</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">(gdb) set $r3=0x9c29bccc</span><br><span class="line">(gdb) info register</span><br><span class="line">r0             0x0	0</span><br><span class="line">r1             0x1000	4096</span><br><span class="line">r2             0x98	152</span><br><span class="line">r3             0x9c29bccc	2619981004</span><br><span class="line">r4             0x9c19f000	2618945536</span><br><span class="line">r5             0x9c29c564	2619983204</span><br><span class="line">r6             0x9c29c000	2619981824</span><br><span class="line">r7             0xb8b65468	3098956904</span><br><span class="line">r8             0x9c1a0000	2618949632</span><br><span class="line">r9             0x9c1a0000	2618949632</span><br><span class="line">r10            0x9c19f000	2618945536</span><br><span class="line">r11            0xffffffff	4294967295</span><br><span class="line">r12            0xb8b65468	3098956904</span><br><span class="line">sp             0x9c29c558	0x9c29c558</span><br><span class="line">lr             0xb4c8982b	-1261922261</span><br><span class="line">pc             0xb4c89832	0xb4c89832</span><br><span class="line">cpsr           0x80070030	-2147024848</span><br><span class="line">(gdb) si</span><br><span class="line">^C</span><br><span class="line">Program received signal SIGINT, Interrupt.</span><br></pre></td></tr></table></figure>
+<p>修改r3的值为当前page的其它地址时候，si指令执行失败。</p>
+<p>所以，是部分page出现了异常，但异常的根本原因呢？</p>
+<h3 id="workaround"><a href="#workaround" class="headerlink" title="workaround"></a>workaround</h3><p>我提供了一个patch给客户，用于把kernel里面CMA内存借用的机制给禁用掉，长时间拷机不再出现该异常。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">diff --git a/mm/page_alloc.c b/mm/page_alloc.c</span><br><span class="line">index bf6c928..aaf8342 100644</span><br><span class="line">--- a/mm/page_alloc.c</span><br><span class="line">+++ b/mm/page_alloc.c</span><br><span class="line">@@ -933,7 +933,7 @@ static int fallbacks[MIGRATE_TYPES][4] = &#123;</span><br><span class="line">        [MIGRATE_UNMOVABLE]   = &#123; MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE,     MIGRATE_RESERVE &#125;,</span><br><span class="line">        [MIGRATE_RECLAIMABLE] = &#123; MIGRATE_UNMOVABLE,   MIGRATE_MOVABLE,     MIGRATE_RESERVE &#125;,</span><br><span class="line"> #ifdef CONFIG_CMA</span><br><span class="line">-       [MIGRATE_MOVABLE]     = &#123; MIGRATE_CMA,         MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_RESERVE &#125;,</span><br><span class="line">+       [MIGRATE_MOVABLE]     = &#123; MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_RESERVE &#125;,</span><br><span class="line">        [MIGRATE_CMA]         = &#123; MIGRATE_RESERVE &#125;, /* Never used */</span><br><span class="line"> #else</span><br><span class="line">        [MIGRATE_MOVABLE]     = &#123; MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE,   MIGRATE_RESERVE &#125;,</span><br><span class="line">@@ -1360,7 +1360,7 @@ void free_hot_cold_page(struct page *page, int cold)</span><br><span class="line">         * excessively into the page allocator</span><br><span class="line">         */</span><br><span class="line">        if (migratetype &gt;= MIGRATE_PCPTYPES) &#123;</span><br><span class="line">-               if (unlikely(is_migrate_isolate(migratetype))) &#123;</span><br><span class="line">+               if (unlikely(is_migrate_isolate(migratetype)) || is_migrate_cma(migratetype)) &#123;</span><br><span class="line">                        free_one_page(zone, page, 0, migratetype);</span><br><span class="line">                        goto out;</span><br><span class="line">                &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="猜测："><a href="#猜测：" class="headerlink" title="猜测："></a>猜测：</h3><p>由此我猜测：该app从cma中借用了一个page做为其stack的一部分，视频播放时候需要CMA内存，在CMA内存紧张时候会收回被借出去的page，包括被app借走的那块；接着，当app访问stack时候发现对应的page已经不存在，于是触发kernel的page fault机制去分配内存。可能是当前app在执行的代码比较特殊，必须要使用原来的那块page，但是那块page已经被用作视频buffer无法收回，于是kernel一直陷在page fault中。</p>
+<p>这猜测过于勉强，但我已没有时间继续就这问题深入下去，暂且如此吧。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/android/" rel="tag"># android</a>
+              <a href="/tags/media/" rel="tag"># media</a>
+              <a href="/tags/debug/" rel="tag"># debug</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/11/23/Android8-0%E5%B9%B3%E5%8F%B0Camera-monkey%E6%8B%B7%E6%9C%BA%E5%8D%A1%E6%AD%BB%E5%BC%82%E5%B8%B8/" rel="prev" title="Android8.0平台Camera monkey拷机卡死异常">
+      <i class="fa fa-chevron-left"></i> Android8.0平台Camera monkey拷机卡死异常
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#异常现象"><span class="nav-number">1.</span> <span class="nav-text">异常现象</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#CPU负载"><span class="nav-number">2.</span> <span class="nav-text">CPU负载</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#debuggerd"><span class="nav-number">3.</span> <span class="nav-text">debuggerd</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#查看异常位置的源代码及其汇编"><span class="nav-number">4.</span> <span class="nav-text">查看异常位置的源代码及其汇编</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PERF"><span class="nav-number">5.</span> <span class="nav-text">PERF</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#GDB"><span class="nav-number">6.</span> <span class="nav-text">GDB</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#workaround"><span class="nav-number">7.</span> <span class="nav-text">workaround</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#猜测："><span class="nav-number">8.</span> <span class="nav-text">猜测：</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Albuer"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">Albuer</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">7</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albuer" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albuer" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/mailto:albuer@gmail.com" title="E-Mail → mailto:albuer@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Albuer</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v4.0.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v7.5.0
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script>
+<script src="/js/schemes/pisces.js"></script>
+<script src="/js/next-boot.js"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID: '66fb0bd64bf2a984713f',
+      clientSecret: 'ae827dae232ed3dc1b43004bc4aa53808a15c5a3',
+      repo: 'albuer.github.io',
+      owner: 'albuer',
+      admin: ['albuer'],
+      id: 'ce30bf45109a006a29f3a31d2bd85645',
+        language: 'zh-CN',
+      distractionFreeMode: 'true'
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+</script>
+
+</body>
+</html>
