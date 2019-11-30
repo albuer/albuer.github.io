@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.0.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '7.5.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":true,"show_result":true,"style":"default"},
+    back2top: {"enable":true,"sidebar":true,"scrollpercent":true},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="Android在bionic libc中实现了一种方法用于定位堆内存（heap）泄露的位置以及内存越界（此处我们只关注内存泄露问题）开启libc debug在Android系统中，通过属性来控制libc debug开关。不同的Android版本，所使用的属性会有所不同：Android6.0以及更早的版本">
+<meta name="keywords" content="android,debug,heapsnap">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android libc debug">
+<meta property="og:url" content="https:&#x2F;&#x2F;albuer.github.io&#x2F;2019&#x2F;11&#x2F;30&#x2F;Android-libc-debug&#x2F;index.html">
+<meta property="og:site_name" content="Albuer的博客">
+<meta property="og:description" content="Android在bionic libc中实现了一种方法用于定位堆内存（heap）泄露的位置以及内存越界（此处我们只关注内存泄露问题）开启libc debug在Android系统中，通过属性来控制libc debug开关。不同的Android版本，所使用的属性会有所不同：Android6.0以及更早的版本">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2019-11-30T02:36:25.592Z">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="https://albuer.github.io/2019/11/30/Android-libc-debug/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>Android libc debug | Albuer的博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Albuer的博客</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档</a>
+
+  </li>
+  </ul>
+
+</nav>
+</div>
+    </header>
+
+    
+
+  <a href="https://github.com/albuer" class="github-corner" title="进入我的GitHub" aria-label="进入我的GitHub" rel="noopener" target="_blank"><svg width="80" height="80" viewBox="0 0 250 250" aria-hidden="true"><path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path><path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path><path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path></svg></a>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://albuer.github.io/2019/11/30/Android-libc-debug/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.png">
+      <meta itemprop="name" content="Albuer">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Albuer的博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Android libc debug
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2019年11月30日 10:31:33 / 修改时间：10:36:25" itemprop="dateCreated datePublished" datetime="2019-11-30T10:31:33+08:00">2019年11月30日</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E8%B0%83%E8%AF%95/" itemprop="url" rel="index">
+                    <span itemprop="name">调试</span>
+                  </a>
+                </span>
+            </span>
+
+          
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>Android在bionic libc中实现了一种方法用于定位堆内存（heap）泄露的位置以及内存越界（此处我们只关注内存泄露问题）</p><h2 id="开启libc-debug"><a href="#开启libc-debug" class="headerlink" title="开启libc debug"></a>开启libc debug</h2><p>在Android系统中，通过属性来控制libc debug开关。不同的Android版本，所使用的属性会有所不同：</p><h3 id="Android6-0以及更早的版本"><a href="#Android6-0以及更早的版本" class="headerlink" title="Android6.0以及更早的版本"></a>Android6.0以及更早的版本</h3><a id="more"></a>
+
+<ul>
+<li><p>目标进程从zygote派生</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">setprop libc.debug.malloc 1</span><br><span class="line">stop</span><br><span class="line">start</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>目标进程不是从zygote派生</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">setprop lib.malloc.debug 1</span><br><span class="line">kill -9 [目标进程ID]</span><br></pre></td></tr></table></figure>
+
+</li>
+</ul>
+<h3 id="Android7-0及以后的版本"><a href="#Android7-0及以后的版本" class="headerlink" title="Android7.0及以后的版本"></a>Android7.0及以后的版本</h3><ul>
+<li><p>目标进程从zygote派生</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">setprop libc.debug.malloc.program [目标进程名称]</span><br><span class="line">setprop libc.debug.malloc.options backtrace</span><br><span class="line">stop</span><br><span class="line">start</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>目标进程不是从zygote派生</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">setprop libc.debug.malloc.program [目标进程名称]</span><br><span class="line">setprop libc.debug.malloc.options backtrace</span><br><span class="line">kill -9 [目标进程ID]</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>用signal控制libc debug</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">setprop libc.debug.malloc.options backtrace_enable_on_signal</span><br><span class="line">stop</span><br><span class="line">start</span><br><span class="line">kill -45 &lt;目标进程&gt;</span><br></pre></td></tr></table></figure>
+
+<p>与<code>backtrace</code>这种options不同的地方，就是<code>backtrace_enable_on_signal</code>可以允许你在合适的时机再开启目标进程的libc debug功能。</p>
+</li>
+</ul>
+<h2 id="获取heap信息"><a href="#获取heap信息" class="headerlink" title="获取heap信息"></a>获取heap信息</h2><p>对不同类型的进程，在打开了该进程的libc debug开关之后，就可以使用对应的方法来获得该进程的heap信息</p>
+<h3 id="派生自Zygote的进程"><a href="#派生自Zygote的进程" class="headerlink" title="派生自Zygote的进程"></a>派生自Zygote的进程</h3><p>派生自Zygote的进程，可以通过<code>am dumpheap</code>命令获得heap内存信息</p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">am dumpheap -n &lt;PID&gt; [/save/path]</span><br></pre></td></tr></table></figure>
+
+<p>所得到的heap信息如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Android Native Heap Dump v1.2</span><br><span class="line"></span><br><span class="line">Total memory: 295944</span><br><span class="line">Allocation records: 4</span><br><span class="line">Backtrace size: 16</span><br><span class="line"></span><br><span class="line">z 0  sz     4096  num    66  bt 57e2e6b204 768185a854</span><br><span class="line">z 0  sz     4096  num    6  bt</span><br><span class="line">z 0  sz     1024  num    1  bt</span><br><span class="line">z 0  sz        8  num    1  bt</span><br></pre></td></tr></table></figure>
+
+<p>注意：Android 7/8 版本的heap信息中，并不会合并同类项（即backtrace相同的项），使得heap信息看起来很长；而Android9虽然有合并同类项，但解析脚本又按照旧的方式解析（未合并同类项的方式），所得到的解析后的数据是有问题的。这些问题在<a href="https://github.com/albuer/heapsnap" target="_blank" rel="noopener">HeapSnap</a>里面都有解决。</p>
+<h3 id="mediaserver进程"><a href="#mediaserver进程" class="headerlink" title="mediaserver进程"></a>mediaserver进程</h3>  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dumpsys media.player -m</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="其它进程"><a href="#其它进程" class="headerlink" title="其它进程"></a>其它进程</h3><p>除了派生自Zygote的进程，以及mediaserver进程之外，其它的进程Android不支持获取heap信息，但我们可以通过第三方的工具实现，比如：<a href="https://github.com/albuer/heapsnap" target="_blank" rel="noopener">HeapSnap</a></p>
+  <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/data/local/tmp/heapsnap -p &lt;pid&gt; -l /data/local/tmp/libheapsnap.so</span><br><span class="line">kill -21 &lt;pid&gt;</span><br></pre></td></tr></table></figure>
+
+<p>  heap信息被保存在<code>/sdcard/heap_snap/</code>，其内容如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">Heap Snapshot v1.0</span><br><span class="line"></span><br><span class="line">Total memory: 33800</span><br><span class="line">Allocation records: 3</span><br><span class="line">Backtrace size: 32</span><br><span class="line"></span><br><span class="line">z 0  sz     4096  num    8  bt 0000007f9a2b0e14 0000007f9a37f534 00000055828338bc 000000558283379c 0000007f9a37f6b0 0000005582833810</span><br><span class="line">          #00  pc 0000000000008e14  /system/lib64/libc_malloc_debug_leak.so (leak_malloc+408)</span><br><span class="line">          #01  pc 0000000000019534  /system/lib64/libc.so (malloc+24)</span><br><span class="line">          #02  pc 00000000000008bc  /system/bin/leak_test</span><br><span class="line">          #03  pc 000000000000079c  /system/bin/leak_test (main+28)</span><br><span class="line">          #04  pc 00000000000196b0  /system/lib64/libc.so (__libc_init+104)</span><br><span class="line">          #05  pc 0000000000000810  /system/bin/leak_test</span><br></pre></td></tr></table></figure>
+
+
+
+
+<h2 id="解析Heap信息"><a href="#解析Heap信息" class="headerlink" title="解析Heap信息"></a>解析Heap信息</h2><p>使用<code>am dumpheap</code>命令所得到的heap信息中，backtrace是未经解析的地址，需要使用Android SDK工程中的脚本进行解析；用heapsnap工具得到的heap信息，已经有做了部分解析，如果想要更详细的解析，也可以使用Android SDK工程中的脚本对它进行解析。</p>
+<p>注意：Android SDK工程代码需要跟所测试设备一致，否则很多地址会解析异常</p>
+<ol>
+<li><p>把前面所保存的heap信息文件复制到android sdk中</p>
+</li>
+<li><p>使用脚本解析heap文件</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">development/scripts/native_heapdump_viewer.py heap.txt &gt; heap_info.txt</span><br></pre></td></tr></table></figure>
+
+<p>也可以保存成html文件:</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">development/scripts/native_heapdump_viewer.py --html heap.txt &gt; heap_info.html</span><br></pre></td></tr></table></figure>
+
+<p>android6.0及更早版本：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">development/scripts/stack heap.txt &gt; heap_info.txt</span><br></pre></td></tr></table></figure>
+
+</li>
+</ol>
+<p>解析出来的信息如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"> BYTES %TOTAL %PARENT    COUNT    ADDR LIBRARY FUNCTION LOCATION</span><br><span class="line">     0   0.00%   0.00%        0 APP   </span><br><span class="line"></span><br><span class="line">107808 100.00% 100.00%      198 ZYGOTE   </span><br><span class="line">107800  99.99%  99.99%      197   5d1b2c0678 /system/bin/leak_test do_arm64_start external/heapsnap.git/leak_test.c:?</span><br><span class="line">107800  99.99% 100.00%      197     77cd006594 /system/lib64/libc.so __libc_init /proc/self/cwd/bionic/libc/bionic/libc_init_dynamic.cpp:109</span><br><span class="line"> 98304  91.18%  91.19%       24       5d1b2c073c /system/bin/leak_test foo /proc/self/cwd/external/heapsnap.git/leak_test.c:9 (discriminator 1)</span><br><span class="line">  8472   7.86%   7.86%      172       5d1b2c0764 /system/bin/leak_test main /proc/self/cwd/external/heapsnap.git/leak_test.c:22</span><br><span class="line">  8472   7.86% 100.00%      172         77cd02a084 /system/lib64/libc.so sleep /proc/self/cwd/bionic/libc/upstream-freebsd/lib/libc/gen/sleep.c:58</span><br><span class="line">  8472   7.86% 100.00%      172           77cd05756c /system/lib64/libc.so nanosleep /proc/self/cwd/bionic/libc/arch-arm64/syscalls/nanosleep.S:7</span><br><span class="line">  8472   7.86% 100.00%      172             77cd2206bc [vdso] ??? ???</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/android/" rel="tag"># android</a>
+              <a href="/tags/debug/" rel="tag"># debug</a>
+              <a href="/tags/heapsnap/" rel="tag"># heapsnap</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2019/11/23/%E4%B8%80%E6%AC%A1%E6%96%B0%E7%9A%84%E8%A7%86%E9%A2%91%E6%92%AD%E6%94%BE%E5%8D%A1%E6%AD%BB%E5%BC%82%E5%B8%B8/" rel="prev" title="一次新的视频播放卡死异常">
+      <i class="fa fa-chevron-left"></i> 一次新的视频播放卡死异常
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+    <div class="comments" id="gitalk-container"></div>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#开启libc-debug"><span class="nav-number">1.</span> <span class="nav-text">开启libc debug</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Android6-0以及更早的版本"><span class="nav-number">1.1.</span> <span class="nav-text">Android6.0以及更早的版本</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Android7-0及以后的版本"><span class="nav-number">1.2.</span> <span class="nav-text">Android7.0及以后的版本</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#获取heap信息"><span class="nav-number">2.</span> <span class="nav-text">获取heap信息</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#派生自Zygote的进程"><span class="nav-number">2.1.</span> <span class="nav-text">派生自Zygote的进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#mediaserver进程"><span class="nav-number">2.2.</span> <span class="nav-text">mediaserver进程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#其它进程"><span class="nav-number">2.3.</span> <span class="nav-text">其它进程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#解析Heap信息"><span class="nav-number">3.</span> <span class="nav-text">解析Heap信息</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Albuer"
+      src="/images/avatar.png">
+  <p class="site-author-name" itemprop="name">Albuer</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">8</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/albuer" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;albuer" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="/mailto:albuer@gmail.com" title="E-Mail → mailto:albuer@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+        <div class="back-to-top motion-element">
+          <i class="fa fa-arrow-up"></i>
+          <span>0%</span>
+        </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Albuer</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v4.0.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> v7.5.0
+  </div>
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+<script src="/js/utils.js"></script><script src="/js/motion.js"></script>
+<script src="/js/schemes/pisces.js"></script>
+<script src="/js/next-boot.js"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.css">
+
+<script>
+  NexT.utils.getScript('//cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js', () => {
+    var gitalk = new Gitalk({
+      clientID: '66fb0bd64bf2a984713f',
+      clientSecret: 'ae827dae232ed3dc1b43004bc4aa53808a15c5a3',
+      repo: 'albuer.github.io',
+      owner: 'albuer',
+      admin: ['albuer'],
+      id: 'b764d3effb5f3d23d8a24d8272366245',
+        language: 'zh-CN',
+      distractionFreeMode: 'true'
+    });
+    gitalk.render('gitalk-container');
+  }, window.Gitalk);
+</script>
+
+</body>
+</html>
